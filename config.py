@@ -1,13 +1,18 @@
 from pydantic_settings import BaseSettings
-from typing import Optional, List
+from typing import Optional
 
 
 class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str
 
+    # Groq — free tier, production models (fast)
     GROQ_API_KEY: Optional[str] = None
+    # Default: fastest free production model on Groq (~560 tok/s)
     GROQ_MODEL: str = "llama-3.1-8b-instant"
+    # Comma-separated fallbacks if primary hits limits / errors
+    GROQ_FALLBACK_MODELS: str = "openai/gpt-oss-20b,llama-3.3-70b-versatile"
 
+    # OpenRouter free models (optional backup)
     OPENROUTER_API_KEY: Optional[str] = None
     OPENROUTER_MODEL: str = "meta-llama/llama-3.3-70b-instruct:free"
 

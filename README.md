@@ -25,14 +25,29 @@ No slash commands, no buttons, no menus — just natural language.
 
 ```bash
 cd atlas
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# edit .env — at minimum TELEGRAM_BOT_TOKEN + ANTHROPIC_API_KEY (or OPENAI)
+# edit .env — TELEGRAM_BOT_TOKEN + GROQ_API_KEY
 python main.py
 ```
 
 Open Telegram → search your bot → start chatting.
+
+### LLM setup (free)
+
+1. Get a free key at [console.groq.com](https://console.groq.com)
+2. In `.env`:
+
+```env
+LLM_PROVIDER=groq
+GROQ_API_KEY=gsk_...
+GROQ_MODEL=llama-3.1-8b-instant
+GROQ_FALLBACK_MODELS=openai/gpt-oss-20b,llama-3.3-70b-versatile
+```
+
+These are **current Groq production models** (fast + free-tier friendly).  
+If you hit rate limits (429), wait a few minutes and try again — free tiers reset periodically.
 
 ## Getting a Telegram bot token
 
@@ -42,7 +57,7 @@ Open Telegram → search your bot → start chatting.
 
 ## Google OAuth (optional)
 
-See `integrations/google_setup.md` (create after first run if needed).  
+See `integrations/google_setup.md`.  
 You need a public HTTPS URL for the callback (Railway / Render / ngrok for testing).
 
 ## Project layout
@@ -54,32 +69,16 @@ atlas/
 ├── oauth_server.py      # FastAPI Google callback
 ├── bot/handlers.py      # Text / voice / docs / images
 ├── ai/
-│   ├── engine.py        # LLM + tool loop
-│   ├── tools.py         # Tool schemas & dispatch
+│   ├── engine.py        # LLM + tool loop + model fallbacks
+│   ├── tools.py
 │   ├── prompts.py
 │   └── memory.py
 ├── services/
-│   ├── market_data.py
-│   ├── news.py
-│   ├── sec.py
-│   ├── documents.py
-│   ├── google_auth.py
-│   ├── gmail_service.py
-│   ├── calendar_service.py
-│   └── drive_service.py
-├── db/models.py + session.py
-├── scheduler/jobs.py    # Alerts + daily brief
+├── db/
+├── scheduler/
 ├── Dockerfile
 └── requirements.txt
 ```
-
-## Design principles (hackathon)
-
-- **Usefulness & proactivity** over feature count
-- Zero-command conversational UX
-- Concise, decision-ready answers
-- Finance-first; optional verticals later
-- Clean modular architecture
 
 ## Deployment
 

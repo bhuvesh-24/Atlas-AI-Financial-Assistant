@@ -16,7 +16,8 @@ def _is_retryable(err: Exception) -> bool:
     return any(x in s for x in [
         "rate limit", "429", "quota", "over capacity", "tokens",
         "tool_use_failed", "tool call validation", "resource_exhausted",
-        "model_decommissioned", "not found", "timeout",
+        "model_decommissioned", "decommissioned", "not found", "timeout",
+        "does not exist", "invalid_model",
     ])
 
 
@@ -64,7 +65,12 @@ async def generate_response(
             if not _is_retryable(e):
                 continue
 
-    return "All providers failed or hit limits:\n" + "\n".join(errors[:5])
+    return (
+        "All providers failed or hit limits. "
+        "If you see rate-limit / 429 errors, wait a few minutes and try again "
+        "(free-tier quotas reset periodically).\n"
+        + "\n".join(errors[:5])
+    )
 
 
 def _provider_chain():
@@ -76,12 +82,19 @@ def _provider_chain():
     elif pref == "openrouter" and settings.OPENROUTER_API_KEY:
         chain.append(("openrouter", _run_openrouter))
     else:
-        # auto: Groq first, then OpenRouter
         if settings.GROQ_API_KEY:
             chain.append(("groq", _run_groq))
         if settings.OPENROUTER_API_KEY:
             chain.append(("openrouter", _run_openrouter))
     return chain
+
+
+def _groq_models() -> List[str]:
+    primary = (settings.GROQ_MODEL or "llama-3.1-8b-instant").strip()
+    raw = getattr(settings, "GROQ_FALLBACK_MODELS", "") or ""
+    fallbacks = [m.strip() for m in raw.split(",") if m.strip()]
+    models = [primary] + [m for m in fallbacks if m != primary]
+    return models
 
 
 async def _run_openai_compatible(
@@ -199,12 +212,25 @@ async def _run_openai_compatible(
 
 
 async def _run_groq(session, user, system, messages, tools):
-    return await _run_openai_compatible(
-        session, user, system, messages, tools,
-        api_key=settings.GROQ_API_KEY,
-        base_url="https://api.groq.com/openai/v1",
-        model=settings.GROQ_MODEL,
-    )
+    last_err: Optional[Exception] = None
+    for model in _groq_models():
+        try:
+            logger.info("Groq model: %s", model)
+            return await _run_openai_compatible(
+                session, user, system, messages, tools,
+                api_key=settings.GROQ_API_KEY,
+                base_url="https://api.groq.com/openai/v1",
+                model=model,
+            )
+        except Exception as e:
+            last_err = e
+            logger.warning("Groq model %s failed: %s", model, e)
+            if not _is_retryable(e):
+                raise
+            continue
+    if last_err:
+        raise last_err
+    raise RuntimeError("No Groq models configured")
 
 
 async def _run_openrouter(session, user, system, messages, tools):
